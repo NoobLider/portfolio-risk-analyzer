@@ -30,6 +30,7 @@ export default function Home() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [activeView, setActiveView] = useState<'analysis' | 'optimization' | null>(null);
 
   const handleAnalyze = useCallback(async () => {
     if (assets.length === 0) {
@@ -47,6 +48,7 @@ export default function Home() {
         period,
       });
       setAnalysis(response);
+      setActiveView('analysis');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Analysis failed. Please try again.');
     } finally {
@@ -71,6 +73,7 @@ export default function Home() {
         allow_short_selling: false,
       });
       setOptimization(response);
+      setActiveView('optimization');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Optimization failed. Please try again.');
     } finally {
@@ -121,9 +124,9 @@ export default function Home() {
               period={period}
               onPeriodChange={(p) => {
                 setPeriod(p);
-                // Clear stale results when period changes
                 setAnalysis(null);
                 setOptimization(null);
+                setActiveView(null);
               }}
             />
 
@@ -195,7 +198,7 @@ export default function Home() {
           {/* Right column - Results */}
           <div className="lg:col-span-2 space-y-6">
             {/* Analysis results */}
-            {analysis && (
+            {analysis && activeView === 'analysis' && (
               <>
                 <RiskMetricsCard metrics={analysis.portfolio_metrics} />
 
@@ -236,7 +239,7 @@ export default function Home() {
             )}
 
             {/* Optimization results */}
-            {optimization && (
+            {optimization && activeView === 'optimization' && (
               <>
                 <OptimizationComparison
                   currentPortfolio={analysis ? {
@@ -313,6 +316,32 @@ export default function Home() {
                   </div>
                 </div>
               </>
+            )}
+
+            {/* View switcher — shown when both results are available */}
+            {analysis && optimization && (
+              <div className="flex gap-2 bg-white rounded-lg shadow-sm p-1 border border-gray-200">
+                <button
+                  onClick={() => setActiveView('analysis')}
+                  className={`flex-1 py-2 text-sm font-medium rounded-md transition-colors ${
+                    activeView === 'analysis'
+                      ? 'bg-blue-600 text-white'
+                      : 'text-gray-600 hover:text-blue-600'
+                  }`}
+                >
+                  Risk Analysis
+                </button>
+                <button
+                  onClick={() => setActiveView('optimization')}
+                  className={`flex-1 py-2 text-sm font-medium rounded-md transition-colors ${
+                    activeView === 'optimization'
+                      ? 'bg-green-600 text-white'
+                      : 'text-gray-600 hover:text-green-600'
+                  }`}
+                >
+                  Optimization
+                </button>
+              </div>
             )}
 
             {/* Empty state */}
