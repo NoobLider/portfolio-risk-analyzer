@@ -119,6 +119,12 @@ async def analyze_portfolio(request: PortfolioAnalysisRequest):
         corr_dict = correlation_matrix.to_dict()
         cov_dict = covariance_matrix.to_dict()
         
+        # Fetch sector data (best-effort, non-blocking)
+        try:
+            sectors = data_fetcher.get_sectors_for_tickers(tickers)
+        except Exception:
+            sectors = {}
+
         # Round for cleaner response
         weights_dict = {t: round(float(w), 4) for t, w in zip(tickers, weights)}
         
@@ -143,7 +149,8 @@ async def analyze_portfolio(request: PortfolioAnalysisRequest):
                 "start": str(returns.index[0].date()),
                 "end": str(returns.index[-1].date())
             },
-            warnings=warnings
+            warnings=warnings,
+            sectors=sectors
         )
         
     except HTTPException:
@@ -224,7 +231,13 @@ async def optimize_portfolio(request: OptimizationRequest):
         
         # Get correlation matrix
         correlation_matrix = calculator.calculate_correlation_matrix(returns)
-        
+
+        # Fetch sector data (best-effort)
+        try:
+            sectors = data_fetcher.get_sectors_for_tickers(tickers)
+        except Exception:
+            sectors = {}
+
         # Convert optimization results
         def convert_opt_result(result):
             return {
@@ -251,7 +264,8 @@ async def optimize_portfolio(request: OptimizationRequest):
                 "start": str(returns.index[0].date()),
                 "end": str(returns.index[-1].date())
             },
-            warnings=warnings
+            warnings=warnings,
+            sectors=sectors
         )
         
     except HTTPException:

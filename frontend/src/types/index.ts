@@ -49,6 +49,7 @@ export interface PortfolioAnalysisResponse {
     end: string;
   };
   warnings: Record<string, string>;
+  sectors: Record<string, string>;
 }
 
 export interface OptimizationResult {
@@ -76,6 +77,7 @@ export interface OptimalPortfoliosResponse {
     end: string;
   };
   warnings: Record<string, string>;
+  sectors: Record<string, string>;
 }
 
 export interface OptimizationRequest {

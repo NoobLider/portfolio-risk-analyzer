@@ -84,6 +84,7 @@ class PortfolioAnalysisResponse(BaseModel):
     benchmark: Optional[str]
     data_range: Dict[str, str]
     warnings: Dict[str, str]
+    sectors: Dict[str, str] = Field(default_factory=dict, description="Sector for each ticker")
 
 
 class OptimizationResult(BaseModel):
@@ -106,6 +107,7 @@ class OptimalPortfoliosResponse(BaseModel):
     asset_metrics: Dict[str, AssetMetrics]
     data_range: Dict[str, str]
     warnings: Dict[str, str]
+    sectors: Dict[str, str] = Field(default_factory=dict, description="Sector for each ticker")
 
 
 class EfficientFrontierPoint(BaseModel):

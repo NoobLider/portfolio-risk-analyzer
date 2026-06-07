@@ -5,11 +5,20 @@ import { Plus, X, Search, Loader2 } from 'lucide-react';
 import { Asset } from '@/types';
 import { marketApi } from '@/lib/api';
 
+const PERIOD_OPTIONS = [
+  { label: '1Y', value: '1y', description: '1 year' },
+  { label: '3Y', value: '3y', description: '3 years' },
+  { label: '5Y', value: '5y', description: '5 years' },
+  { label: '10Y', value: '10y', description: '10 years' },
+];
+
 interface PortfolioInputProps {
   assets: Asset[];
   onAssetsChange: (assets: Asset[]) => void;
   riskFreeRate: number;
   onRiskFreeRateChange: (rate: number) => void;
+  period: string;
+  onPeriodChange: (period: string) => void;
 }
 
 export const PortfolioInput: React.FC<PortfolioInputProps> = ({
@@ -17,6 +26,8 @@ export const PortfolioInput: React.FC<PortfolioInputProps> = ({
   onAssetsChange,
   riskFreeRate,
   onRiskFreeRateChange,
+  period,
+  onPeriodChange,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Array<{ ticker: string; name: string }>>([]);
@@ -109,6 +120,30 @@ export const PortfolioInput: React.FC<PortfolioInputProps> = ({
           className="w-24 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
         <span className="text-sm text-gray-500">(e.g., 0.045 for 4.5%)</span>
+      </div>
+
+      {/* Period selector */}
+      <div className="mb-4">
+        <label className="text-sm font-medium text-gray-700 block mb-2">Data Period:</label>
+        <div className="flex gap-2">
+          {PERIOD_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => onPeriodChange(opt.value)}
+              title={opt.description}
+              className={`flex-1 py-1.5 text-sm font-medium rounded-lg border transition-colors ${
+                period === opt.value
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400 hover:text-blue-600'
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+        <p className="text-xs text-gray-500 mt-1">
+          Historical window used for all calculations
+        </p>
       </div>
 
       {/* Search */}

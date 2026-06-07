@@ -8,6 +8,8 @@ import { EfficientFrontierChart } from '@/components/charts/EfficientFrontierCha
 import { AllocationPieChart } from '@/components/charts/AllocationPieChart';
 import { CorrelationHeatmap } from '@/components/charts/CorrelationHeatmap';
 import { OptimizationComparison } from '@/components/portfolio/OptimizationComparison';
+import { SectorWarning } from '@/components/portfolio/SectorWarning';
+import { CorrelationComparison } from '@/components/charts/CorrelationComparison';
 import { portfolioApi } from '@/lib/api';
 import { Asset, PortfolioAnalysisResponse, OptimalPortfoliosResponse } from '@/types';
 
@@ -20,6 +22,7 @@ export default function Home() {
     { ticker: 'META', weight: 0.15 },
   ]);
   const [riskFreeRate, setRiskFreeRate] = useState(0.045);
+  const [period, setPeriod] = useState('5y');
 
   const [analysis, setAnalysis] = useState<PortfolioAnalysisResponse | null>(null);
   const [optimization, setOptimization] = useState<OptimalPortfoliosResponse | null>(null);
@@ -41,7 +44,7 @@ export default function Home() {
       const response = await portfolioApi.analyzePortfolio({
         assets: assets.map((a) => ({ ticker: a.ticker, weight: a.weight })),
         risk_free_rate: riskFreeRate,
-        period: '5y',
+        period,
       });
       setAnalysis(response);
     } catch (err) {
@@ -49,7 +52,7 @@ export default function Home() {
     } finally {
       setIsAnalyzing(false);
     }
-  }, [assets, riskFreeRate]);
+  }, [assets, riskFreeRate, period]);
 
   const handleOptimize = useCallback(async () => {
     if (assets.length < 2) {
@@ -64,7 +67,7 @@ export default function Home() {
       const response = await portfolioApi.optimizePortfolio({
         tickers: assets.map((a) => a.ticker),
         risk_free_rate: riskFreeRate,
-        period: '5y',
+        period,
         allow_short_selling: false,
       });
       setOptimization(response);
@@ -73,7 +76,11 @@ export default function Home() {
     } finally {
       setIsOptimizing(false);
     }
-  }, [assets, riskFreeRate]);
+  }, [assets, riskFreeRate, period]);
+
+  // Collect sectors from whichever response is available
+  const sectors: Record<string, string> =
+    optimization?.sectors ?? analysis?.sectors ?? {};
 
   return (
     <main className="min-h-screen bg-gray-100">
@@ -111,7 +118,25 @@ export default function Home() {
               onAssetsChange={setAssets}
               riskFreeRate={riskFreeRate}
               onRiskFreeRateChange={setRiskFreeRate}
+              period={period}
+              onPeriodChange={(p) => {
+                setPeriod(p);
+                // Clear stale results when period changes
+                setAnalysis(null);
+                setOptimization(null);
+              }}
             />
+
+            {/* Sector warning */}
+            {Object.keys(sectors).length > 0 && (
+              <SectorWarning
+                sectors={sectors}
+                weights={
+                  analysis?.weights ??
+                  Object.fromEntries(assets.map((a) => [a.ticker, a.weight]))
+                }
+              />
+            )}
 
             {/* Action buttons */}
             <div className="flex gap-3">
@@ -182,7 +207,14 @@ export default function Home() {
                     <div className="space-y-2">
                       {Object.entries(analysis.asset_metrics).map(([ticker, metrics]) => (
                         <div key={ticker} className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                          <span className="font-medium text-gray-900">{ticker}</span>
+                          <div>
+                            <span className="font-medium text-gray-900">{ticker}</span>
+                            {analysis.sectors[ticker] && analysis.sectors[ticker] !== 'Unknown' && (
+                              <span className="ml-2 text-xs text-gray-500 bg-gray-200 px-1.5 py-0.5 rounded">
+                                {analysis.sectors[ticker]}
+                              </span>
+                            )}
+                          </div>
                           <div className="text-sm text-right">
                             <span className="text-gray-600">Return: {(metrics.expected_return * 100).toFixed(1)}%</span>
                             <span className="ml-3 text-gray-600">Vol: {(metrics.volatility * 100).toFixed(1)}%</span>
@@ -197,6 +229,7 @@ export default function Home() {
                   <CorrelationHeatmap
                     correlationMatrix={analysis.correlation_matrix}
                     tickers={Object.keys(analysis.correlation_matrix)}
+                    title="Asset Correlation Matrix — Current Portfolio"
                   />
                 )}
               </>
@@ -244,6 +277,17 @@ export default function Home() {
                     }] : []),
                   ]}
                   riskFreeRate={riskFreeRate}
+                />
+
+                {/* Before/After Correlation Comparison */}
+                <CorrelationComparison
+                  correlationMatrix={optimization.correlation_matrix}
+                  currentWeights={
+                    analysis?.weights ??
+                    Object.fromEntries(assets.map((a) => [a.ticker, a.weight]))
+                  }
+                  optimalWeights={optimization.max_sharpe.optimal_weights}
+                  tickers={Object.keys(optimization.correlation_matrix)}
                 />
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

@@ -224,6 +224,25 @@ class DataFetcher:
                 'currency': 'USD'
             }
     
+    def get_sectors_for_tickers(self, tickers: List[str]) -> Dict[str, str]:
+        """
+        Get sector classification for a list of tickers.
+
+        Args:
+            tickers: List of ticker symbols
+
+        Returns:
+            Dict mapping ticker -> sector (e.g., {"AAPL": "Technology"})
+        """
+        sectors: Dict[str, str] = {}
+        for ticker in tickers:
+            try:
+                info = yf.Ticker(ticker).info
+                sectors[ticker] = info.get('sector', 'Unknown') or 'Unknown'
+            except Exception:
+                sectors[ticker] = 'Unknown'
+        return sectors
+
     def search_tickers(self, query: str) -> List[Dict]:
         """
         Search for tickers by company name or symbol.
