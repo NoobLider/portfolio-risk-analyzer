@@ -7,6 +7,10 @@ import {
   TickerSearchResult,
   ExamplePortfolios,
   EfficientFrontierPoint,
+  MonteCarloRequest,
+  MonteCarloResponse,
+  BenchmarkComparisonRequest,
+  BenchmarkComparisonResponse,
 } from '@/types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -50,6 +54,20 @@ export const portfolioApi = {
   // Get example portfolios
   getExamplePortfolios: async (): Promise<ExamplePortfolios> => {
     const response = await api.get('/portfolio/example-portfolios');
+    return response.data;
+  },
+
+  // Run Monte Carlo simulation
+  runMonteCarlo: async (request: MonteCarloRequest): Promise<MonteCarloResponse> => {
+    const response = await api.post('/portfolio/monte-carlo', request);
+    return response.data;
+  },
+
+  // Get benchmark comparison
+  getBenchmarkComparison: async (
+    request: BenchmarkComparisonRequest
+  ): Promise<BenchmarkComparisonResponse> => {
+    const response = await api.post('/portfolio/benchmark-comparison', request);
     return response.data;
   },
 };

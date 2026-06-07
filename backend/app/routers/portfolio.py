@@ -16,8 +16,13 @@ from app.models.schemas import (
     OptimalPortfoliosResponse,
     EfficientFrontierRequest,
     EfficientFrontierResponse,
+    MonteCarloRequest,
+    MonteCarloResponse,
+    BenchmarkComparisonRequest,
+    BenchmarkComparisonResponse,
     AssetMetrics,
     RiskMetrics,
+    OptimizationResult,
     ErrorResponse
 )
 from app.services.calculator import PortfolioCalculator
@@ -323,6 +328,143 @@ async def get_efficient_frontier(request: EfficientFrontierRequest):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to generate frontier: {str(e)}")
+
+
+@router.post("/monte-carlo", response_model=MonteCarloResponse)
+async def run_monte_carlo(request: MonteCarloRequest):
+    """
+    Run Monte Carlo simulation with random portfolio weights.
+
+    Generates n_simulations random weight vectors and computes risk/return
+    for each, producing a cloud of portfolios that visualises the efficient frontier.
+    """
+    try:
+        tickers = [t.upper() for t in request.tickers]
+
+        data_fetcher = DataFetcher()
+        calculator = PortfolioCalculator(risk_free_rate=request.risk_free_rate)
+
+        prices, _ = data_fetcher.fetch_historical_data(
+            tickers=tickers,
+            period=request.period,
+            start_date=request.start_date,
+            end_date=request.end_date
+        )
+
+        available_tickers = [t for t in tickers if t in prices.columns]
+        if len(available_tickers) < 2:
+            raise HTTPException(status_code=400, detail="Need at least 2 valid tickers")
+
+        tickers = available_tickers
+        prices = prices[tickers]
+        returns = calculator.calculate_returns(prices)
+
+        simulations = calculator.run_monte_carlo(returns, tickers, n_simulations=request.n_simulations)
+
+        return MonteCarloResponse(
+            simulations=simulations,
+            tickers=tickers,
+            risk_free_rate=request.risk_free_rate,
+            data_range={
+                "start": str(returns.index[0].date()),
+                "end": str(returns.index[-1].date())
+            }
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Monte Carlo simulation failed: {str(e)}")
+
+
+@router.post("/benchmark-comparison", response_model=BenchmarkComparisonResponse)
+async def benchmark_comparison(request: BenchmarkComparisonRequest):
+    """
+    Compare portfolio cumulative returns vs a benchmark (default SPY).
+
+    Returns a time series of portfolio and benchmark values (starting at 1.0)
+    plus summary statistics: total return, alpha, tracking error, info ratio.
+    """
+    try:
+        tickers = [asset.ticker.upper() for asset in request.assets]
+        weights = np.array([asset.weight for asset in request.assets])
+        weights = weights / weights.sum()
+
+        data_fetcher = DataFetcher()
+        calculator = PortfolioCalculator()
+
+        prices, _ = data_fetcher.fetch_historical_data(
+            tickers=tickers,
+            period=request.period,
+            start_date=request.start_date,
+            end_date=request.end_date
+        )
+
+        available_tickers = [t for t in tickers if t in prices.columns]
+        if not available_tickers:
+            raise HTTPException(status_code=400, detail="No valid tickers found")
+
+        if len(available_tickers) < len(tickers):
+            mask = np.array([t in available_tickers for t in tickers])
+            weights = weights[mask]
+            weights = weights / weights.sum()
+            tickers = available_tickers
+
+        prices = prices[tickers]
+
+        # Fetch benchmark
+        benchmark_prices = data_fetcher.fetch_benchmark_data(
+            benchmark=request.benchmark,
+            period=request.period,
+            start_date=request.start_date,
+            end_date=request.end_date
+        )
+
+        series = calculator.calculate_cumulative_returns(prices, weights, benchmark_prices)
+
+        if not series:
+            raise HTTPException(status_code=500, detail="Could not compute cumulative returns")
+
+        # Summary stats
+        final_port = series[-1]['portfolio']
+        final_bench = series[-1].get('benchmark', 1.0)
+        port_total_return = final_port - 1.0
+        bench_total_return = final_bench - 1.0
+
+        # Daily returns for tracking error / info ratio
+        port_daily = prices.pct_change().dropna().dot(weights)
+        bench_daily = benchmark_prices.pct_change().dropna()
+        aligned = pd.concat([port_daily, bench_daily], axis=1).dropna()
+        aligned.columns = ['portfolio', 'benchmark']
+        excess = aligned['portfolio'] - aligned['benchmark']
+        tracking_error = float(excess.std() * np.sqrt(252))
+        info_ratio = float((excess.mean() * 252) / tracking_error) if tracking_error > 0 else 0.0
+        n_years = len(series) / 252
+        annualized_port = float((1 + port_total_return) ** (1 / max(n_years, 0.01)) - 1)
+        annualized_bench = float((1 + bench_total_return) ** (1 / max(n_years, 0.01)) - 1)
+
+        return BenchmarkComparisonResponse(
+            series=series,
+            benchmark=request.benchmark,
+            summary={
+                "portfolio_total_return": round(port_total_return, 4),
+                "benchmark_total_return": round(bench_total_return, 4),
+                "portfolio_annualized_return": round(annualized_port, 4),
+                "benchmark_annualized_return": round(annualized_bench, 4),
+                "tracking_error": round(tracking_error, 4),
+                "information_ratio": round(info_ratio, 4),
+                "alpha": round(annualized_port - annualized_bench, 4),
+            },
+            data_range={
+                "start": series[0]['date'],
+                "end": series[-1]['date']
+            }
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Benchmark comparison failed: {str(e)}")
 
 
 @router.get("/example-portfolios")

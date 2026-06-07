@@ -111,3 +111,54 @@ export interface ExamplePortfolio {
 }
 
 export type ExamplePortfolios = Record<string, ExamplePortfolio>;
+
+export interface MonteCarloRequest {
+  tickers: string[];
+  start_date?: string;
+  end_date?: string;
+  period?: string;
+  risk_free_rate?: number;
+  n_simulations?: number;
+}
+
+export interface MonteCarloPoint {
+  return: number;
+  volatility: number;
+  sharpe: number;
+}
+
+export interface MonteCarloResponse {
+  simulations: MonteCarloPoint[];
+  tickers: string[];
+  risk_free_rate: number;
+  data_range: { start: string; end: string };
+}
+
+export interface BenchmarkComparisonRequest {
+  assets: AssetInput[];
+  start_date?: string;
+  end_date?: string;
+  period?: string;
+  benchmark?: string;
+}
+
+export interface BenchmarkDataPoint {
+  date: string;
+  portfolio: number;
+  benchmark?: number;
+}
+
+export interface BenchmarkComparisonResponse {
+  series: BenchmarkDataPoint[];
+  benchmark: string;
+  summary: {
+    portfolio_total_return: number;
+    benchmark_total_return: number;
+    portfolio_annualized_return: number;
+    benchmark_annualized_return: number;
+    tracking_error: number;
+    information_ratio: number;
+    alpha: number;
+  };
+  data_range: { start: string; end: string };
+}

@@ -187,6 +187,96 @@ class PortfolioCalculator:
             }
         return metrics
     
+    def run_monte_carlo(
+        self,
+        returns: pd.DataFrame,
+        tickers: List[str],
+        n_simulations: int = 2000
+    ) -> List[Dict]:
+        """
+        Run Monte Carlo simulation by generating random portfolio weights.
+
+        Randomly samples n_simulations weight vectors from a Dirichlet distribution,
+        calculates return/volatility/Sharpe for each, and returns the results.
+
+        Args:
+            returns: DataFrame of daily asset returns
+            tickers: List of ticker symbols (must match returns columns)
+            n_simulations: Number of random portfolios to simulate
+
+        Returns:
+            List of dicts with keys: return, volatility, sharpe, weights
+        """
+        mean_returns = returns.mean() * self.TRADING_DAYS_PER_YEAR
+        cov_matrix = returns.cov() * self.TRADING_DAYS_PER_YEAR
+        n_assets = len(tickers)
+
+        results = []
+        # Dirichlet with alpha=1 gives uniform distribution over simplex
+        rng = np.random.default_rng(seed=42)
+        weight_matrix = rng.dirichlet(np.ones(n_assets), size=n_simulations)
+
+        for weights in weight_matrix:
+            port_return = float(np.dot(weights, mean_returns))
+            port_vol = float(np.sqrt(np.dot(weights.T, np.dot(cov_matrix, weights))))
+            sharpe = (port_return - self.risk_free_rate) / port_vol if port_vol > 0 else 0.0
+            results.append({
+                'return': round(port_return, 5),
+                'volatility': round(port_vol, 5),
+                'sharpe': round(sharpe, 5),
+            })
+
+        return results
+
+    def calculate_cumulative_returns(
+        self,
+        prices: pd.DataFrame,
+        weights: np.ndarray,
+        benchmark_prices: Optional[pd.Series] = None
+    ) -> List[Dict]:
+        """
+        Calculate cumulative portfolio returns vs benchmark over time.
+
+        Args:
+            prices: DataFrame of asset prices (date index)
+            weights: Portfolio weights array
+            benchmark_prices: Optional benchmark price series (e.g., SPY)
+
+        Returns:
+            List of dicts with keys: date, portfolio, benchmark (optional)
+        """
+        weights = np.array(weights) / np.sum(weights)
+
+        # Daily returns
+        port_daily = prices.pct_change().dropna()
+        port_returns = port_daily.dot(weights)
+
+        # Cumulative portfolio value (starts at 1.0)
+        cumulative_port = (1 + port_returns).cumprod()
+
+        results = []
+        if benchmark_prices is not None:
+            bench_daily = benchmark_prices.pct_change().dropna()
+            # Align on common dates
+            aligned = pd.concat(
+                [cumulative_port, (1 + bench_daily).cumprod()], axis=1
+            ).dropna()
+            aligned.columns = ['portfolio', 'benchmark']
+            for date, row in aligned.iterrows():
+                results.append({
+                    'date': str(date.date()),
+                    'portfolio': round(float(row['portfolio']), 6),
+                    'benchmark': round(float(row['benchmark']), 6),
+                })
+        else:
+            for date, val in cumulative_port.items():
+                results.append({
+                    'date': str(date.date()),
+                    'portfolio': round(float(val), 6),
+                })
+
+        return results
+
     def portfolio_performance(
         self,
         weights: np.ndarray,

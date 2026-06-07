@@ -153,6 +153,49 @@ class MarketDataResponse(BaseModel):
     period: str
 
 
+class MonteCarloRequest(BaseModel):
+    """Request model for Monte Carlo simulation"""
+    tickers: List[str] = Field(..., description="List of ticker symbols", min_length=2, max_length=50)
+    start_date: Optional[str] = Field(None, description="Start date (YYYY-MM-DD)")
+    end_date: Optional[str] = Field(None, description="End date (YYYY-MM-DD)")
+    period: str = Field("5y", description="Data period if dates not specified")
+    risk_free_rate: float = Field(0.02, description="Annual risk-free rate", ge=0, le=0.5)
+    n_simulations: int = Field(2000, description="Number of random portfolios", ge=100, le=10000)
+
+
+class MonteCarloResponse(BaseModel):
+    """Monte Carlo simulation response"""
+    simulations: List[Dict[str, float]]
+    tickers: List[str]
+    risk_free_rate: float
+    data_range: Dict[str, str]
+
+
+class BenchmarkComparisonRequest(BaseModel):
+    """Request model for benchmark comparison"""
+    assets: List[AssetInput] = Field(..., description="List of assets with weights", min_length=1)
+    start_date: Optional[str] = Field(None, description="Start date (YYYY-MM-DD)")
+    end_date: Optional[str] = Field(None, description="End date (YYYY-MM-DD)")
+    period: str = Field("5y", description="Data period if dates not specified")
+    benchmark: str = Field("SPY", description="Benchmark ticker symbol")
+
+    @field_validator('assets')
+    def weights_sum_to_one(cls, v):
+        total = sum(asset.weight for asset in v)
+        if abs(total - 1.0) > 0.01:
+            for asset in v:
+                asset.weight = asset.weight / total
+        return v
+
+
+class BenchmarkComparisonResponse(BaseModel):
+    """Benchmark comparison response"""
+    series: List[Dict[str, Any]]   # [{date, portfolio, benchmark}, ...]
+    benchmark: str
+    summary: Dict[str, float]      # total_return, benchmark_return, alpha, tracking_error
+    data_range: Dict[str, str]
+
+
 class ErrorResponse(BaseModel):
     """Error response model"""
     error: str
